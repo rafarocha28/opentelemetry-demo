@@ -1,6 +1,17 @@
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using OTM;
+using OTM.Options;
+using System.Reflection;
+
+var configPath = (Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
+                  ?? Path.GetDirectoryName(Environment.ProcessPath))
+                 ?? Environment.CurrentDirectory;
+
+IConfiguration config = new ConfigurationBuilder()
+    .SetBasePath(configPath)
+    .AddJsonFile("appsettings.json", optional: false)
+    .AddUserSecrets(Assembly.GetExecutingAssembly())
+    .Build();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,9 +22,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
-builder.Services.AddSingleton<IUserProvider>(new UserProvider("Persist Security Info = False; Integrated Security = true; Initial Catalog = Demo; server = .\\SQLEXPRESS"));
+builder.Services.Configure<TcwOptions>(config.GetSection(TcwOptions.Tcw));
 
-var serviceName = "StreetService";
+var serviceName = "TCW Service";
 
 builder.Services.AddOpenTelemetryTracing(b => {
     b.AddConsoleExporter()
@@ -21,9 +32,8 @@ builder.Services.AddOpenTelemetryTracing(b => {
     .SetResourceBuilder(
         ResourceBuilder.CreateDefault().AddService(serviceName, serviceVersion: "1.0.0")
     )
-    .AddAspNetCoreInstrumentation()
-    .AddSqlClientInstrumentation()
-    .AddHttpClientInstrumentation();
+    .AddAspNetCoreInstrumentation()    
+    .AddHttpClientInstrumentation();    
 });
 
 var app = builder.Build();
