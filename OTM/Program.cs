@@ -1,3 +1,5 @@
+using OpenTelemetry.Exporter.InfluxDB;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OTM.Options;
@@ -26,15 +28,30 @@ builder.Services.Configure<TcwOptions>(config.GetSection(TcwOptions.Tcw));
 
 var serviceName = "TCW Service";
 
-builder.Services.AddOpenTelemetryTracing(b => {
-    b.AddConsoleExporter()
-    .AddSource(serviceName)
-    .SetResourceBuilder(
-        ResourceBuilder.CreateDefault().AddService(serviceName, serviceVersion: "1.0.0")
-    )
-    .AddAspNetCoreInstrumentation()    
-    .AddHttpClientInstrumentation();    
-});
+builder.Services.AddOpenTelemetry()
+    .WithTracing(b => 
+    {
+        b.AddConsoleExporter()
+        .AddSource(serviceName)
+        .SetResourceBuilder(
+            ResourceBuilder.CreateDefault().AddService(serviceName, serviceVersion: "1.0.0")
+        )        
+        .AddAspNetCoreInstrumentation()    
+        .AddHttpClientInstrumentation();    
+    })
+    .WithMetrics(b =>
+    {
+        var isInfluxActive = config.GetSection("InfluxDB").GetValue<bool>("active");
+        if (isInfluxActive)
+            b.AddInfluxDBMetricsExporter(options =>
+            {
+                options.Org = "-";
+                options.Bucket = config.GetSection("InfluxDB:bucket").Value;
+                options.Token = config.GetSection("InfluxDB:username").Value + ":" + config.GetSection("InfluxDB:password").Value;
+                options.Endpoint = new Uri(config.GetSection("InfluxDB:url").Value);
+                options.MetricsSchema = MetricsSchema.TelegrafPrometheusV2;
+            });
+    });
 
 var app = builder.Build();
 
