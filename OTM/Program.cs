@@ -29,18 +29,21 @@ builder.Services.Configure<TcwOptions>(config.GetSection(TcwOptions.Tcw));
 var serviceName = "TCW Service";
 
 builder.Services.AddOpenTelemetry()
-    .WithTracing(b => 
+    .WithTracing(b =>
     {
         b.AddConsoleExporter()
         .AddSource(serviceName)
         .SetResourceBuilder(
             ResourceBuilder.CreateDefault().AddService(serviceName, serviceVersion: "1.0.0")
         )        
-        .AddAspNetCoreInstrumentation()    
-        .AddHttpClientInstrumentation();    
+        .AddHttpClientInstrumentation();
     })
     .WithMetrics(b =>
     {
+        b.AddConsoleExporter()
+        .SetResourceBuilder(
+            ResourceBuilder.CreateDefault().AddService(serviceName, serviceVersion: "1.0.0")
+        );
         var isInfluxActive = config.GetSection("InfluxDB").GetValue<bool>("active");
         if (isInfluxActive)
             b.AddInfluxDBMetricsExporter(options =>
@@ -50,7 +53,8 @@ builder.Services.AddOpenTelemetry()
                 options.Token = config.GetSection("InfluxDB:username").Value + ":" + config.GetSection("InfluxDB:password").Value;
                 options.Endpoint = new Uri(config.GetSection("InfluxDB:url").Value);
                 options.MetricsSchema = MetricsSchema.TelegrafPrometheusV2;
-            });
+            })            
+            .AddHttpClientInstrumentation();
     });
 
 var app = builder.Build();
